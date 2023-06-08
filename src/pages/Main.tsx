@@ -12,7 +12,6 @@ import tokenWalletAbi from '../abi/TokenWallet.abi.json';
 
 import ConnectWallet from '../components/ConnectWallet'
 import SaleForm from '../components/SaleForm';
-import ReceiveForm from '../components/ReceiveForm';
 
 
 type Props = {
@@ -159,7 +158,7 @@ function Main({ venomConnect }: Props) {
           </p>                    
           <p>{address}</p>
           <a className="logout" onClick={onDisconnect}>
-            <img src={LogOutImg} alt="Logout" />
+            <img src={LogOutImg} alt="Logout" onClick={onDisconnect}/>
           </a>
         </header>
       )}

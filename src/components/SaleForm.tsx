@@ -17,8 +17,9 @@ import tokenSaleAbi from "../abi/Tokensale.abi.json";
 import WenomUnionAbi from "../abi/WenomUnion.abi.json";
 
 import TokenWallet from "../abi/TokenWallet.abi.json";
+import TokenRootAbi from "../abi/TokenRoot.abi.json";
 
-
+import IndianRupee from "../abi/IndiaRupee.abi.json";
 import AddTokenImg from "../styles/img/add_token.svg";
 
 type Props = {
@@ -31,10 +32,13 @@ type Props = {
 
 
 
+
 function SaleForm({ balance, venomConnect, address, provider, getBalance }: Props) {
   const [tokenAmount, setTokenAmount] = useState<number | undefined>();
 
   const [secretCode, setSecretCode] = useState<string | undefined>("");
+
+  const [RupeeBalance, setBalance] = useState<string | undefined>("0");
 
   const [secretCodeDisplay, setSecretCodeDisplay] = useState<string | undefined>("");
 
@@ -51,6 +55,23 @@ function SaleForm({ balance, venomConnect, address, provider, getBalance }: Prop
     setTokenAmount(Number(e));
   };
 
+  const setMaxValue = async () => {
+
+    if (!venomConnect || !address  || !provider) return;
+
+    const userAddress = new Address(address);
+  
+    const TokenRootContractAddress = new Address("0:65c3ff8fdd39c2487a9b0536c785ef8d528b1a6e8cefa9c2d03ddb1981255b6b")
+    const tokenRootContract = new provider.Contract(TokenRootAbi, TokenRootContractAddress);
+  
+    const {value0: userTokenWalletAddress} = await tokenRootContract.methods.walletOf({answerId: 0, walletOwner: userAddress} as never).call();
+    const contract = new provider.Contract(TokenWallet, userTokenWalletAddress);
+    const {value0: userTokenBalance } = await contract.methods.balance({answerId: 0} as never).call();
+    const inr_balance = new BigNumber(userTokenBalance).dividedToIntegerBy(10**2); 
+
+    setTokenAmount(Number(inr_balance));
+  }
+
   // handler that helps us to ask user about adding our token to the user's venom wallet
   const onTokenAdd = () => {
     console.log(provider?.addAsset({
@@ -62,8 +83,13 @@ function SaleForm({ balance, venomConnect, address, provider, getBalance }: Prop
     }))
   }
 
+  const onDisconnect = async () => {
+    console.log("TEST");
+    provider?.disconnect();
+    window.location.reload();
+  };
 
-const buyTokens = async () => {
+const generateSecretCode = async () => {
 
   if (!venomConnect || !address || !tokenAmount || !provider) return;
   const userAddress = new Address(address);
@@ -103,7 +129,7 @@ const buyTokens = async () => {
   try {
 
     
-    // and just call buyTokens method according to smart contract
+    // and just call generateSecretCode method according to smart contract
     const result = await contract.methods
       .moneyTransfer({
         hashcode, _key,_amount,_currency
@@ -113,42 +139,104 @@ const buyTokens = async () => {
         amount,
         bounce: true,
       });
+
+      setStatusMsg("Secret Code generation in progress...");
+
     if (result?.id?.lt && result?.endStatus === "active") {
-      setStatusMsg("Transfer Success, Share the code :" + withDraw_Code);
-      getBalance(address);
+     
+  
+      setStatusMsg("Share the Secret Code  "+ withDraw_Code + " to receive INR " + tokenAmount);
+
+      getBalanceINR();
     }
+
+
+    
+
+
+
   } catch (e) {
     console.error(e);
   }
 
 };
-
-const TransferRs = async () => {
-
+const getBalanceINR = async () => {
   if (!venomConnect || !address  || !provider) return;
+
   const userAddress = new Address(address);
 
-  const amount = new BigNumber(300).multipliedBy(10 ** 2).toString(); // Contract"s rate parameter is 1 venom = 10 tokens
+  const TokenRootContractAddress = new Address("0:65c3ff8fdd39c2487a9b0536c785ef8d528b1a6e8cefa9c2d03ddb1981255b6b")
+  const tokenRootContract = new provider.Contract(TokenRootAbi, TokenRootContractAddress);
 
-  const deployWalletValue = new BigNumber(0.5).multipliedBy(10 ** 9).toString(); // Contract"s rate parameter is 1 venom = 10 tokens
+  const {value0: userTokenWalletAddress} = await tokenRootContract.methods.walletOf({answerId: 0, walletOwner: userAddress} as never).call();
+  const contract = new provider.Contract(TokenWallet, userTokenWalletAddress);
+  const {value0: userTokenBalance } = await contract.methods.balance({answerId: 0} as never).call();
 
-  const payload = "undefined";
+  
+  const inr_balance = new BigNumber(userTokenBalance).dividedToIntegerBy(10**2).toString(); 
+  setBalance(inr_balance);
+
+}
+getBalanceINR();
+
+const TransferINR = async () => {
+
+  if (!venomConnect || !address || !tokenAmount  || !provider) return;
+  const userAddress = new Address(address);
 
 
+
+
+
+
+
+
+  const TokenRootContractAddress = new Address("0:65c3ff8fdd39c2487a9b0536c785ef8d528b1a6e8cefa9c2d03ddb1981255b6b")
+  const tokenRootContract = new provider.Contract(TokenRootAbi, TokenRootContractAddress);
+
+  const {value0: userTokenWalletAddress} = await tokenRootContract.methods.walletOf({answerId: 0, walletOwner: userAddress} as never).call();
+  const contract = new provider.Contract(TokenWallet, userTokenWalletAddress);
+  const {value0: userTokenBalance } = await contract.methods.balance({answerId: 0} as never).call();
+
+  const amount = new BigNumber(tokenAmount).multipliedBy(10 ** 2).toString(); // Contract"s rate parameter is 1 venom = 10 tokens
+  const inr_balance = new BigNumber(userTokenBalance).dividedToIntegerBy(1).toString(); 
+
+  if(inr_balance < amount)
+  {
+    setStatusMsg("Insucfficient Balance");
+    return;
+  }
+
+  setStatusMsg("Waiting for Transfer Approval INR " + tokenAmount + ".00 ");
+
+  const {value0: symbol} = await tokenRootContract.methods.symbol({answerId: 0} as never ).call();
+  const {value0: decimals} = await tokenRootContract.methods.decimals({answerId: 0} as never).call();
+ 
+
+  getBalanceINR();
+
+
+  const gas = new BigNumber(15).multipliedBy(10 ** 7).toString(); // Contract"s rate parameter is 1 venom = 10 tokens
+
+  const deployWalletValue = new BigNumber(15).multipliedBy(10 **6).toString(); // Contract"s rate parameter is 1 venom = 10 tokens
+
+  const payload = '';
+
+
+  const remainingGasTo = new Address("0:da5e5db1755592b73d27fcdc640d26b251abe0280a0240d06ee79e08f02aa151"); // Our Tokensale contract address
   const contractAddress = new Address("0:65c3ff8fdd39c2487a9b0536c785ef8d528b1a6e8cefa9c2d03ddb1981255b6b"); // Our Tokensale contract address
+  const tokenRupee = new provider.Contract(IndianRupee, contractAddress);
 
-  const recipient = new Address("0:d142a8a9aa01b3a0a77835ecc4bfb803ff52805f0ed0677cf82a29400fc91542"); // Our Tokensale contract address
+  const recipient = tokenRupee.address;
 
-  const remainingGasTo = new Address("0:d142a8a9aa01b3a0a77835ecc4bfb803ff52805f0ed0677cf82a29400fc91542"); // Our Tokensale contract address
+  const notify = true;
 
-  const contract = new provider.Contract(TokenWallet, contractAddress);
 
-  const notify = false;
-
-  var _secret_code = secretCode;
-  setSecretCodeDisplay(_secret_code);
-
+  
+ 
   try {
+
+    setStatusMsg("Transaction is in progress....");
 
     // Transfer Rupees method according to smart contract
     const result = await contract.methods
@@ -157,16 +245,32 @@ const TransferRs = async () => {
       } as never)
       .send({
         from: userAddress,
-        amount,
+        amount: gas,
         bounce: true,
       });
+
+
+
     if (result?.id?.lt && result?.endStatus === "active") {
-      setStatusMsg("Transfer Rupeees !");
-      getBalance(address);
+
+      const {value0: userTokenBalance } = await contract.methods.balance({answerId: 0} as never).call();
+
+      setStatusMsg("Secret Code generation in started");
+
+      generateSecretCode();
+
+      console.log(result);
+
+      getBalanceINR();
     }
   } catch (e) {
-    console.error(e);
+    
+    setStatusMsg("Use rejected the transaction");
+
+
   }
+
+   
 
 };
 
@@ -180,11 +284,15 @@ const TransferRs = async () => {
 
     const contract = new provider.Contract(WenomUnionAbi, contractAddress);
 
+    setStatusMsg("Withdraw of INR started");
+
+
     var _secret_code = secretCode;
     const amount = new BigNumber(1).plus(new BigNumber(1).multipliedBy(10 ** 9)).toString();;
     setSecretCodeDisplay(_secret_code);
 
     try {
+      setStatusMsg("Withdraw of INR is in progress.....");
 
       // withDrawTokens method according to smart contract
       const result = await contract.methods
@@ -196,9 +304,11 @@ const TransferRs = async () => {
           amount,
           bounce: true,
         });
+
+
       if (result?.id?.lt && result?.endStatus === "active") {
         setStatusMsg("Withdraw Success !");
-        getBalance(address);
+        getBalanceINR();
       }
     } catch (e) {
       console.error(e);
@@ -213,7 +323,7 @@ const TransferRs = async () => {
        
       </div>      
       <div className="item-info">
-        <span>(Indian Rupee) INR</span>
+        <span>(Indian Rupee) INR {RupeeBalance}.00 </span>
         <b>0:65c...b6b</b> 
       </div>
       <div className="item-info">
@@ -229,9 +339,9 @@ const TransferRs = async () => {
             maxLength={15}            
           />
       </div>      
-      <div className="card__amount">
-        <div className="number">
-          <span>Amount</span>
+      <div className="item-info">
+        <div className="item-info">
+        <span>Amount</span>&nbsp;
           <input
             type="number"
             min={0}
@@ -239,31 +349,35 @@ const TransferRs = async () => {
             onChange={(e) => {
               onChangeAmount(e.target.value);
             }}
-            maxLength={5}            
-
-          />
+            maxLength={5}           
+           />&nbsp;&nbsp;
+           <a  onClick={setMaxValue}>Max</a>
         </div>
 
       </div>
       <div className="item-info">
-      <a className={!tokenAmount ? "btn disabled" : "btn"} onClick={buyTokens}>
+      <a className={!tokenAmount ? "btn disabled" : "btn"} onClick={TransferINR}>
           Transfer Now
         </a>        
       <a className={!secretCode ? "btn disabled" : "btn"} onClick={withDrawTokens}>
           With Draw Fund
         </a>
       </div>
-      <div>
-      <a className="btn" onClick={onTokenAdd}>
-          Add Token
-        </a>
-      </div>
 
-      <div>
-      <a className="btn" onClick={TransferRs}>
-          Transfer Fund
+      <div className="item-info">
+      <a className="btn" onClick={onTokenAdd}>
+          Add Token INR
         </a>
+        <a className="btn" onClick={onDisconnect}>
+          Change Wallet
+        </a>  
       </div>
+      <div className="item-info"> 
+        <span>New Users : Use Secret Code WU-6280AFB865 for INR 1000</span>
+      </div>      
+     
+      
+
     </>
   );
 }
